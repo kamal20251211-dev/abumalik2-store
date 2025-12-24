@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>تموينات أبو مالك</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{font-family:tahoma;background:#f4f6f8;margin:0}
+header{background:#2c3e50;color:#fff;padding:10px;text-align:center}
+nav{display:flex;flex-wrap:wrap;background:#34495e}
+nav button{flex:1;padding:10px;border:none;background:#34495e;color:#fff}
+nav button:hover{background:#2c3e50}
+section{display:none;padding:10px}
+input,select,button{padding:6px;margin:4px;width:100%}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #ccc;padding:5px;text-align:center}
+.profit{background:#27ae60;color:#fff;padding:10px;margin:5px}
+.alert{color:red;font-weight:bold}
+.camera-btn{width:40px}
+</style>
+</head>
+<body>
+
+<header>
+<h2>تموينات أبو مالك للمواد الغذائية والبهارات</h2>
+<div class="profit">الربح الحالي: <span id="profit">0</span> ريال يمني</div>
+</header>
+
+<nav>
+<button onclick="openTab('sales')">المبيعات</button>
+<button onclick="secure('products')">المنتجات</button>
+<button onclick="secure('categories')">الأصناف</button>
+<button onclick="secure('units')">الوحدات</button>
+<button onclick="secure('reports')">التقارير</button>
+<button onclick="secure('settings')">الإعدادات</button>
+</nav>
+
+<!-- المبيعات -->
+<section id="sales">
+<h3>عملية بيع</h3>
+<input id="saleBarcode" placeholder="باركود">
+<button onclick="scan('saleBarcode')">📷</button>
+<input id="saleQty" type="number" placeholder="الكمية">
+<select id="salePay">
+<option>نقدا</option><option>آجل</option><option>حوالة</option>
+</select>
+<button onclick="addSale()">إتمام البيع</button>
+<div id="stockAlert"></div>
+</section>
+
+<!-- المنتجات -->
+<section id="products">
+<h3>إضافة منتج</h3>
+<input id="pBarcode" placeholder="باركود">
+<button onclick="scan('pBarcode')">📷</button>
+<input id="pName" placeholder="اسم المنتج">
+<select id="pCat"></select>
+<select id="pUnit"></select>
+<input id="pBuy" placeholder="سعر الشراء">
+<input id="pSell" placeholder="سعر البيع">
+<input id="pMin" placeholder="الحد الأدنى">
+<input id="pNote" placeholder="ملاحظات">
+<button onclick="addProduct()">حفظ</button>
+<div id="productList"></div>
+</section>
+
+<!-- الأصناف -->
+<section id="categories">
+<h3>الأصناف</h3>
+<input id="catName" placeholder="اسم الصنف">
+<button onclick="addCategory()">إضافة</button>
+<div id="catList"></div>
+</section>
+
+<!-- الوحدات -->
+<section id="units">
+<h3>وحدات القياس</h3>
+<input id="unitName" placeholder="اسم الوحدة">
+<button onclick="addUnit()">إضافة</button>
+<div id="unitList"></div>
+</section>
+
+<!-- التقارير -->
+<section id="reports">
+<h3>التقرير الشهري</h3>
+<button onclick="print()">🖨️ طباعة</button>
+<div id="report"></div>
+</section>
+
+<!-- الإعدادات -->
+<section id="settings">
+<h3>الإعدادات</h3>
+<input id="newPass" type="password" placeholder="كلمة مرور جديدة">
+<button onclick="changePass()">تغيير</button>
+<button onclick="backup()">نسخ احتياطي</button>
+<input type="file" onchange="restore(event)">
+<button onclick="print()">🖨️ طباعة</button>
+</section>
+
+<script>
+let db=JSON.parse(localStorage.getItem("db"))||{
+products:[],cats:[],units:[],sales:[],profit:0,pass:"1234"
+};
+function save(){localStorage.setItem("db",JSON.stringify(db))}
+function openTab(id){
+document.querySelectorAll("section").forEach(s=>s.style.display="none");
+document.getElementById(id).style.display="block";
+}
+openTab("sales");
+
+function secure(id){
+let p=prompt("كلمة المرور");
+if(p===db.pass){openTab(id)}
+}
+
+function addCategory(){
+db.cats.push(catName.value);save();render();
+catName.value="";
+}
+function addUnit(){
+db.units.push(unitName.value);save();render();
+unitName.value="";
+}
+
+function addProduct(){
+db.products.push({
+barcode:pBarcode.value,name:pName.value,
+cat:pCat.value,unit:pUnit.value,
+buy:+pBuy.value,sell:+pSell.value,
+min:+pMin.value,stock:0,note:pNote.value
+});
+save();render();
+}
+
+function addSale(){
+let pr=db.products.find(p=>p.barcode===saleBarcode.value);
+if(!pr)return alert("المنتج غير موجود");
+pr.stock-=saleQty.value;
+let profit=(pr.sell-pr.buy)*saleQty.value;
+db.profit+=profit;
+db.sales.push({date:new Date(),barcode:pr.barcode,qty:saleQty.value});
+save();render();
+}
+
+function render(){
+profit.innerText=db.profit;
+pCat.innerHTML=db.cats.map(c=>`<option>${c}</option>`).join("");
+pUnit.innerHTML=db.units.map(u=>`<option>${u}</option>`).join("");
+productList.innerHTML=db.products.map(p=>
+`${p.name} | مخزون:${p.stock} ${p.stock<=p.min?"<span class='alert'>⚠️</span>":""}`
+).join("<br>");
+}
+render();
+
+async function scan(id){
+if(!("BarcodeDetector"in window))return alert("غير مدعوم");
+let v=document.createElement("video");
+let s=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+v.srcObject=s;v.play();
+let d=new BarcodeDetector();
+setTimeout(async()=>{
+let b=await d.detect(v);
+if(b.length)document.getElementById(id).value=b[0].rawValue;
+s.getTracks()[0].stop();
+},2000);
+}
+
+function backup(){
+let a=document.createElement("a");
+a.href=URL.createObjectURL(new Blob([JSON.stringify(db)]));
+a.download="backup.json";a.click();
+}
+function restore(e){
+let r=new FileReader();
+r.onload=()=>{db=JSON.parse(r.result);save();render();}
+r.readAsText(e.target.files[0]);
+}
+function changePass(){
+db.pass=newPass.value;save();newPass.value="";
+}
+</script>
+</body>
+</html>
